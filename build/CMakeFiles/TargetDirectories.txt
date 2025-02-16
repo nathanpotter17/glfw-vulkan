@@ -1,0 +1,3 @@
+C:/Users/natha/Desktop/glfwVOLK/build/CMakeFiles/VulkanWindow.dir
+C:/Users/natha/Desktop/glfwVOLK/build/CMakeFiles/edit_cache.dir
+C:/Users/natha/Desktop/glfwVOLK/build/CMakeFiles/rebuild_cache.dir
