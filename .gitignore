@@ -1,2 +1,2 @@
-external/vulkan/include/*
+external/vulkan/include/Include/*
 external/vulkan/lib/Lib/*
