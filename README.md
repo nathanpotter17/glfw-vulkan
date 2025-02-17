@@ -1,6 +1,6 @@
 # Minimal GLFW & Vulkan for Windows
 
-This repository contains a simple example of how to use GLFW with Vulkan on Windows only. The example is a simple triangle that is rendered to the screen. The example is informed by the [Vulkan Guide by GLFW](https://www.glfw.org/docs/3.3/vulkan_guide.html), the [Vulkan Tutorial](https://vulkan-tutorial.com/Introduction) by Alexander Overvoorde, and many other resources, like OGLDEV on YouTube.
+This repository contains a simple template for using GLFW with Vulkan on Windows only. The template is informed by the [Vulkan Guide by GLFW](https://www.glfw.org/docs/3.3/vulkan_guide.html), the [Vulkan Tutorial](https://vulkan-tutorial.com/Introduction) by Alexander Overvoorde, and many other resources, like OGLDEV on YouTube.
 
 ## Dependencies
 
@@ -10,7 +10,7 @@ This repository contains a simple example of how to use GLFW with Vulkan on Wind
 - CMake
 - VS Code
 
-## Building
+## Environment Setup
 
 I recommend using Ninja as the build system for this project. It is by far the fastest and easiest to use.
 
