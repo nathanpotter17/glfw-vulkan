@@ -8,7 +8,7 @@
 const int WIDTH = 800;
 const int HEIGHT = 600;
 
-class HelloTriangleApplication {
+class VlkGlfwWindow {
 public:
     void run() {
         initWindow();
@@ -21,6 +21,10 @@ private:
     GLFWwindow* window;
     VkInstance instance;
     VkSurfaceKHR surface;
+    VkDevice device = VK_NULL_HANDLE;
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    VkPhysicalDeviceProperties deviceProperties;
+    VkQueue graphicsQueue;
 
     void initWindow() {
         glfwInit();
@@ -31,7 +35,8 @@ private:
 
     void initVulkan() {
         createInstance();
-        listPhysicalDevices();
+        pickPhysicalDevice();
+        createLogicalDevice();
     }
 
     void createInstance() {
@@ -47,30 +52,23 @@ private:
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         createInfo.pApplicationInfo = &appInfo;
 
-        // Get required extensions (e.g., for GLFW)
+        // Get required extensions for GLFW
         uint32_t glfwExtensionCount = 0;
         const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
         createInfo.enabledExtensionCount = glfwExtensionCount;
         createInfo.ppEnabledExtensionNames = glfwExtensions;
 
-        // Create Vulkan instance
         if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create Vulkan instance!");
         }
 
-        // Create a Vulkan window surface
-        VkResult err = glfwCreateWindowSurface(instance, window, NULL, &surface);
-        if (err)
-        {
-            // Window surface creation failed
+        // Create window surface
+        if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create window surface!");
         }
-
-
     }
 
-    void listPhysicalDevices() {
-        // Enumerate physical devices (GPUs)
+    void pickPhysicalDevice() {
         uint32_t deviceCount = 0;
         vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
 
@@ -80,11 +78,12 @@ private:
 
         std::vector<VkPhysicalDevice> devices(deviceCount);
         vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+        std::cout << "===================================" << std::endl;
+        std::cout << "Compatible Vulkan Devices On-Board:" << std::endl;
 
-        // Log device info
-        std::cout << "Available Vulkan devices:" << std::endl;
+        VkPhysicalDevice bestDevice = VK_NULL_HANDLE;
         for (const auto& device : devices) {
-            VkPhysicalDeviceProperties deviceProperties;
+            
             vkGetPhysicalDeviceProperties(device, &deviceProperties);
 
             std::cout << "Device Name: " << deviceProperties.deviceName << std::endl;
@@ -94,14 +93,17 @@ private:
             std::cout << "Driver Version: " << deviceProperties.driverVersion << std::endl;
             std::cout << "Vendor ID: " << deviceProperties.vendorID << std::endl;
             std::cout << "Device ID: " << deviceProperties.deviceID << std::endl;
-            std::cout << "Device Type: ";
+            
 
+            std::cout << "Device Type: ";
             switch (deviceProperties.deviceType) {
-                case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
-                    std::cout << "Integrated GPU" << std::endl;
-                    break;
                 case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
                     std::cout << "Discrete GPU" << std::endl;
+                    bestDevice = device;  // Prefer discrete GPU
+                    break;
+                case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+                    std::cout << "Integrated GPU" << std::endl;
+                    if (bestDevice == VK_NULL_HANDLE) bestDevice = device;  // Fallback
                     break;
                 case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
                     std::cout << "Virtual GPU" << std::endl;
@@ -115,6 +117,71 @@ private:
             }
             std::cout << std::endl;
         }
+
+        if (bestDevice == VK_NULL_HANDLE) {
+            throw std::runtime_error("No suitable Vulkan GPU found!");
+        }
+
+        physicalDevice = bestDevice;
+    }
+
+    void createLogicalDevice() {
+        if (physicalDevice == VK_NULL_HANDLE) {
+            throw std::runtime_error("Physical device not selected before creating logical device!");
+        }
+
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
+
+        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
+
+        int graphicsQueueFamilyIndex = -1;
+        for (int i = 0; i < queueFamilies.size(); ++i) {
+            if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+                graphicsQueueFamilyIndex = i;
+                break;
+            }
+        }
+
+        if (graphicsQueueFamilyIndex == -1) {
+            throw std::runtime_error("No graphics queue family found!");
+        }
+
+        float queuePriority = 1.0f;
+        VkDeviceQueueCreateInfo queueCreateInfo{};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
+        queueCreateInfo.queueCount = 1;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+
+        VkPhysicalDeviceFeatures deviceFeatures{};
+
+        VkDeviceCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        createInfo.pQueueCreateInfos = &queueCreateInfo;
+        createInfo.queueCreateInfoCount = 1;
+        createInfo.pEnabledFeatures = &deviceFeatures;
+
+        if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create logical device!");
+        }
+
+        vkGetDeviceQueue(device, graphicsQueueFamilyIndex, 0, &graphicsQueue);
+
+        vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
+
+        std::cout << "===================================" << std::endl;
+        std::cout << "Logical Device Created Successfully!" << std::endl;
+        std::cout << "Selected GPU: " << deviceProperties.deviceName << std::endl;
+        std::cout << "Queue Family Index: " << graphicsQueueFamilyIndex << std::endl;
+        std::cout << "API Version: " << VK_VERSION_MAJOR(deviceProperties.apiVersion) << "."
+                << VK_VERSION_MINOR(deviceProperties.apiVersion) << "."
+                << VK_VERSION_PATCH(deviceProperties.apiVersion) << std::endl;
+        std::cout << "Driver Version: " << deviceProperties.driverVersion << std::endl;
+        std::cout << "Vendor ID: " << deviceProperties.vendorID << std::endl;
+        std::cout << "Device ID: " << deviceProperties.deviceID << std::endl;
+        std::cout << "===================================" << std::endl;
     }
 
     void mainLoop() {
@@ -124,6 +191,9 @@ private:
     }
 
     void cleanup() {
+        if (device != VK_NULL_HANDLE) {
+            vkDestroyDevice(device, nullptr);
+        }
         vkDestroySurfaceKHR(instance, surface, nullptr);
         vkDestroyInstance(instance, nullptr);
         glfwDestroyWindow(window);
@@ -132,7 +202,7 @@ private:
 };
 
 int main() {
-    HelloTriangleApplication app;
+    VlkGlfwWindow app;
 
     try {
         app.run();

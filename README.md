@@ -16,9 +16,7 @@ I recommend using Ninja as the build system for this project. It is by far the f
 
 First ensure you install the Vulkan SDK for Windows. Add the VULKAN_SDK environment variable to your system if desired. Check install with `vulkaninfo` in the command prompt.
 
-Because of large file sizes, I have not included the Vulkan SDK in this repository. You can download it from the link above, and ensure to copy the `Include`, `Lib` directly to the `external/vulkan/lib` & `external/vulkan/include` directory in the repository - this keeps the build from failing.
-
-Next, grab glfw from https://github.com/glfw/glfw/releases or simply clone it into your C or Root directory. Then build the glfw library using CMake & Ninja. The following commands should be used to build the library. I have included the necessary files for the template to build for GLFW, but you may need to build the library yourself in order to correctly link with the Vulkan SDK & Windows.
+Next, grab glfw from https://github.com/glfw/glfw/releases or simply clone it into your C or Root directory. Then build the glfw library using CMake & Ninja. The following commands should be used to build the library:
 
 ```bash
 cd glfw
@@ -39,3 +37,5 @@ To build the example, simply clone the repository and run the following commands
 cd glfw-vulkan
 build.bat
 ```
+
+Use run.bat to run the example, or re-compile with build.bat.
