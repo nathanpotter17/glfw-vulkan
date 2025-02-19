@@ -3,7 +3,9 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <cstring>
 #include <vector>
+#include <set>
 
 const int WIDTH = 800;
 const int HEIGHT = 600;
@@ -23,9 +25,10 @@ private:
     VkSurfaceKHR surface;
     VkDevice device = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-    VkPhysicalDeviceProperties deviceProperties;
+    VkSwapchainKHR swapChain;
     VkQueue graphicsQueue;
-
+    VkQueue presentQueue;
+    
     void initWindow() {
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -35,14 +38,43 @@ private:
 
     void initVulkan() {
         createInstance();
+        createSurface();
         pickPhysicalDevice();
         createLogicalDevice();
+        createSwapChain();
     }
+
+    bool checkDeviceExtensionSupport(VkPhysicalDevice device) {
+        uint32_t extensionCount;
+        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+    
+        std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
+    
+        const std::vector<const char*> requiredExtensions = {
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME
+        };
+    
+        for (const char* required : requiredExtensions) {
+            bool found = false;
+            for (const auto& extension : availableExtensions) {
+                if (strcmp(required, extension.extensionName) == 0) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
 
     void createInstance() {
         VkApplicationInfo appInfo{};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = "Vulkan Device Info";
+        appInfo.pApplicationName = "Vulkan App";
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.pEngineName = "No Engine";
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -52,7 +84,6 @@ private:
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         createInfo.pApplicationInfo = &appInfo;
 
-        // Get required extensions for GLFW
         uint32_t glfwExtensionCount = 0;
         const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
         createInfo.enabledExtensionCount = glfwExtensionCount;
@@ -61,8 +92,9 @@ private:
         if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create Vulkan instance!");
         }
+    }
 
-        // Create window surface
+    void createSurface() {
         if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create window surface!");
         }
@@ -78,110 +110,90 @@ private:
 
         std::vector<VkPhysicalDevice> devices(deviceCount);
         vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
-        std::cout << "===================================" << std::endl;
-        std::cout << "Compatible Vulkan Devices On-Board:" << std::endl;
-
-        VkPhysicalDevice bestDevice = VK_NULL_HANDLE;
-        for (const auto& device : devices) {
-            
-            vkGetPhysicalDeviceProperties(device, &deviceProperties);
-
-            std::cout << "Device Name: " << deviceProperties.deviceName << std::endl;
-            std::cout << "API Version: " << VK_VERSION_MAJOR(deviceProperties.apiVersion) << "."
-                      << VK_VERSION_MINOR(deviceProperties.apiVersion) << "."
-                      << VK_VERSION_PATCH(deviceProperties.apiVersion) << std::endl;
-            std::cout << "Driver Version: " << deviceProperties.driverVersion << std::endl;
-            std::cout << "Vendor ID: " << deviceProperties.vendorID << std::endl;
-            std::cout << "Device ID: " << deviceProperties.deviceID << std::endl;
-            
-
-            std::cout << "Device Type: ";
-            switch (deviceProperties.deviceType) {
-                case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
-                    std::cout << "Discrete GPU" << std::endl;
-                    bestDevice = device;  // Prefer discrete GPU
-                    break;
-                case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
-                    std::cout << "Integrated GPU" << std::endl;
-                    if (bestDevice == VK_NULL_HANDLE) bestDevice = device;  // Fallback
-                    break;
-                case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
-                    std::cout << "Virtual GPU" << std::endl;
-                    break;
-                case VK_PHYSICAL_DEVICE_TYPE_CPU:
-                    std::cout << "CPU" << std::endl;
-                    break;
-                default:
-                    std::cout << "Other" << std::endl;
-                    break;
-            }
-            std::cout << std::endl;
-        }
-
-        if (bestDevice == VK_NULL_HANDLE) {
-            throw std::runtime_error("No suitable Vulkan GPU found!");
-        }
-
-        physicalDevice = bestDevice;
+        physicalDevice = devices[0];
     }
 
     void createLogicalDevice() {
-        if (physicalDevice == VK_NULL_HANDLE) {
-            throw std::runtime_error("Physical device not selected before creating logical device!");
-        }
-
         uint32_t queueFamilyCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
-
+    
         std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
-
+    
         int graphicsQueueFamilyIndex = -1;
+        int presentQueueFamilyIndex = -1;
+    
         for (int i = 0; i < queueFamilies.size(); ++i) {
             if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
                 graphicsQueueFamilyIndex = i;
-                break;
+            }
+    
+            VkBool32 presentSupport = false;
+            vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, surface, &presentSupport);
+    
+            if (presentSupport) {
+                presentQueueFamilyIndex = i;
+            }
+    
+            if (graphicsQueueFamilyIndex != -1 && presentQueueFamilyIndex != -1) {
+                break; // Stop if both queue indices are found
             }
         }
-
-        if (graphicsQueueFamilyIndex == -1) {
-            throw std::runtime_error("No graphics queue family found!");
+    
+        if (graphicsQueueFamilyIndex == -1 || presentQueueFamilyIndex == -1) {
+            throw std::runtime_error("Failed to find required queue families!");
         }
-
+    
+        // Unique queue families to avoid duplicate queue creation
+        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+        std::set<int> uniqueQueueFamilies = {graphicsQueueFamilyIndex, presentQueueFamilyIndex};
+    
         float queuePriority = 1.0f;
-        VkDeviceQueueCreateInfo queueCreateInfo{};
-        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
-        queueCreateInfo.queueCount = 1;
-        queueCreateInfo.pQueuePriorities = &queuePriority;
-
+        for (int queueFamily : uniqueQueueFamilies) {
+            VkDeviceQueueCreateInfo queueCreateInfo{};
+            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            queueCreateInfo.queueFamilyIndex = queueFamily;
+            queueCreateInfo.queueCount = 1;
+            queueCreateInfo.pQueuePriorities = &queuePriority;
+            queueCreateInfos.push_back(queueCreateInfo);
+        }
+    
         VkPhysicalDeviceFeatures deviceFeatures{};
-
+    
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        createInfo.pQueueCreateInfos = &queueCreateInfo;
-        createInfo.queueCreateInfoCount = 1;
+        createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+        createInfo.pQueueCreateInfos = queueCreateInfos.data();
         createInfo.pEnabledFeatures = &deviceFeatures;
-
+    
+        const std::vector<const char*> requiredExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
+        createInfo.ppEnabledExtensionNames = requiredExtensions.data();
+    
         if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create logical device!");
         }
-
+    
         vkGetDeviceQueue(device, graphicsQueueFamilyIndex, 0, &graphicsQueue);
+        vkGetDeviceQueue(device, presentQueueFamilyIndex, 0, &presentQueue);
+    }
+    
+    void createSwapChain() {
+        VkSwapchainCreateInfoKHR swapChainCreateInfo{};
+        swapChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+        swapChainCreateInfo.surface = surface;
+        swapChainCreateInfo.minImageCount = 2;
+        swapChainCreateInfo.imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
+        swapChainCreateInfo.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+        swapChainCreateInfo.imageExtent = { WIDTH, HEIGHT };
+        swapChainCreateInfo.imageArrayLayers = 1;
+        swapChainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        swapChainCreateInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+        swapChainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
 
-        vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
-
-        std::cout << "===================================" << std::endl;
-        std::cout << "Logical Device Created Successfully!" << std::endl;
-        std::cout << "Selected GPU: " << deviceProperties.deviceName << std::endl;
-        std::cout << "Queue Family Index: " << graphicsQueueFamilyIndex << std::endl;
-        std::cout << "API Version: " << VK_VERSION_MAJOR(deviceProperties.apiVersion) << "."
-                << VK_VERSION_MINOR(deviceProperties.apiVersion) << "."
-                << VK_VERSION_PATCH(deviceProperties.apiVersion) << std::endl;
-        std::cout << "Driver Version: " << deviceProperties.driverVersion << std::endl;
-        std::cout << "Vendor ID: " << deviceProperties.vendorID << std::endl;
-        std::cout << "Device ID: " << deviceProperties.deviceID << std::endl;
-        std::cout << "===================================" << std::endl;
+        if (vkCreateSwapchainKHR(device, &swapChainCreateInfo, nullptr, &swapChain) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create swap chain!");
+        }
     }
 
     void mainLoop() {
@@ -191,6 +203,9 @@ private:
     }
 
     void cleanup() {
+        if (swapChain != VK_NULL_HANDLE) {
+            vkDestroySwapchainKHR(device, swapChain, nullptr);
+        }
         if (device != VK_NULL_HANDLE) {
             vkDestroyDevice(device, nullptr);
         }
@@ -203,13 +218,11 @@ private:
 
 int main() {
     VlkGlfwWindow app;
-
     try {
         app.run();
     } catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
-
     return EXIT_SUCCESS;
 }
