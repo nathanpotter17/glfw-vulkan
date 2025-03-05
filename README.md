@@ -1,6 +1,13 @@
-# Minimal GLFW & Vulkan for Windows
+# GLFW & Vulkan Template for Windows
 
-This repository contains a simple example of how to use GLFW with Vulkan on Windows only. The example is a simple triangle that is rendered to the screen. The example is informed by the [Vulkan Guide by GLFW](https://www.glfw.org/docs/3.3/vulkan_guide.html), the [Vulkan Tutorial](https://vulkan-tutorial.com/Overview) + [Github](https://github.com/Overv/VulkanTutorial/tree/main/code) by Alexander Overvoorde, the [Vulkan Spec](https://registry.khronos.org/vulkan/specs/latest/pdf/vkspec.pdf), and many other resources, like OGLDEV on YouTube, [Khronos Vulkan Guide](https://github.com/KhronosGroup/Vulkan-Guide), and the Vulkan YouTube channel.
+This repository contains a simple example of how to use GLFW with Vulkan on Windows only. The example is a simple triangle that is rendered to the screen. \
+
+- The example is informed by the [Vulkan Guide by GLFW](https://www.glfw.org/docs/3.3/vulkan_guide.html)
+- The [Vulkan Tutorial](https://vulkan-tutorial.com/Overview) + [Github](https://github.com/Overv/VulkanTutorial/tree/main/code) by Alexander Overvoorde
+- The [Vulkan Spec](https://registry.khronos.org/vulkan/specs/latest/pdf/vkspec.pdf)
+- Other resources:
+  - Vulkan YouTube channel + OGLDEV on YouTube
+  - [Khronos Vulkan Guide](https://github.com/KhronosGroup/Vulkan-Guide)
 
 ## Dependencies
 
@@ -38,4 +45,6 @@ cd glfw-vulkan
 build.bat
 ```
 
-Use run.bat to run the example, or re-compile with build.bat.
+## Run Pre-Built Template
+
+To see the example in action, simply run the `run.bat` file in the command prompt. This will run the pre-built executable from the `/build` directory.
